@@ -18,11 +18,11 @@ Features:
 
 
 Technologies Used:
-Python: For data processing, analysis, and optimization.
-Gurobi: Integer programming solver for portfolio optimization.
-TensorFlow: Non-linear optimization for diminishing returns modeling.
-NumPy & Pandas: Data manipulation and analysis.
-Matplotlib & Seaborn: Visualization tools
+1. Python: For data processing, analysis, and optimization.
+2. Gurobi: Integer programming solver for portfolio optimization.
+3. TensorFlow: Non-linear optimization for diminishing returns modeling.
+4. NumPy & Pandas: Data manipulation and analysis.
+5. Matplotlib & Seaborn: Visualization tools
 
 
 Workflow:
