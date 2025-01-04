@@ -1,4 +1,4 @@
-This project involves creating an optimal stock portfolio from the NASDAQ-100 using data from 2022 and 2023. 
+This project involves creating an optimal stock portfolio from the NASDAQ-100 using current data. 
 The goal is to maximize returns while accounting for diminishing returns by applying integer programming and non-linear optimization techniques. 
 The project is implemented using tools like Gurobi, TensorFlow, and NumPy.
 
