@@ -1,0 +1,232 @@
+import requests
+from bs4 import BeautifulSoup
+import pandas as pd
+import yfinance as yf
+import datetime
+
+# Step 2: Scraping Nasdaq 100 Components from Wikipedia
+url = 'https://en.wikipedia.org/wiki/Nasdaq-100'
+response = requests.get(url)
+soup = BeautifulSoup(response.content, 'html.parser')
+
+# Find the table containing Nasdaq 100 components
+table = soup.find('table', {'class': 'wikitable sortable'})
+
+# Extract table header and data rows
+header = [th.text.strip() for th in table.find_all('th')]
+rows = []
+for row in table.find_all('tr')[1:]:
+    rows.append([td.text.strip() for td in row.find_all('td')])
+
+
+
+
+# Create a Pandas DataFrame from the extracted data
+
+
+
+# Check the exact column names in the DataFrame
+df = pd.DataFrame(rows, columns=header)
+
+
+print("Columns in DataFrame:", df.columns)  
+ 
+ticker_column_name = 'Ticker' if 'Ticker' in df.columns else 'Symbol'
+tickers = df[ticker_column_name].tolist()
+
+# Step 3: Downloading Historical Stock Data
+start_date = (datetime.date.today() -
+              datetime.timedelta(days=5*365)).strftime('%Y-%m-%d')
+end_date = (datetime.date.today()).strftime('%Y-%m-%d')
+# Download historical data for the tickers
+try:
+    data = yf.download(tickers, start=start_date, end=end_date)
+except Exception as e:
+    print(f"Error downloading data: {e}")
+# Select Adjusted Closing Prices
+adj_close = data['Adj Close']
+
+# Step 4: Data Cleaning and Preparation
+# Handling missing values by forward filling
+adj_close.ffill()
+
+# Calculate daily log returns
+daily_returns = adj_close.pct_change().dropna()
+
+
+print("Data downloaded successfully.")
+
+
+import matplotlib.pyplot as plt
+import seaborn as sns
+
+# Step 1: Descriptive Statistics
+descriptive_stats = daily_returns.describe()
+print("Descriptive Statistics:\n", descriptive_stats)
+
+# Step 2: Correlation Matrix Visualization
+correlation_matrix = daily_returns.corr()
+plt.figure(figsize=(12, 8))
+sns.heatmap(correlation_matrix, annot=False, cmap='coolwarm')
+plt.title('Correlation Matrix of Nasdaq 100 Stock Returns')
+plt.show()
+
+# Step 3: Historical Price Trend Visualization
+plt.figure(figsize=(14, 8))
+for i in range(0, len(tickers), 10):  # Plot every 10th stock
+    plt.plot(adj_close[tickers[i]], label=tickers[i])
+plt.title('Historical Adjusted Closing Prices of Selected Nasdaq 100 Stocks')
+plt.xlabel('Date')
+plt.ylabel('Adjusted Closing Price')
+plt.legend(loc='upper left', fontsize='small', ncol=5)
+plt.show()
+
+
+
+# Step 2: Annualize Returns
+annualized_returns = daily_returns.mean() * 252
+
+# Step 3: Calculate Covariance Matrix
+cov_matrix = daily_returns.cov() * 252
+
+
+#Portfolio Optimization w/ Python
+
+
+import matplotlib.pyplot as plt
+import scipy.optimize as optimize
+
+import numpy as np
+
+# Method 1: Monte Carlo Simulation
+num_portfolios = 10000
+risk_free_rate = 0.025  # Assuming a risk-free rate of 2.5%
+
+
+def portfolio_performance(weights, mean_returns, cov_matrix):
+    portfolio_return = np.sum(mean_returns * weights)
+    portfolio_std = np.sqrt(np.dot(weights.T, np.dot(cov_matrix, weights)))
+    return portfolio_return, portfolio_std
+
+
+def generate_efficient_frontier(mean_returns, cov_matrix, num_portfolios):
+    results = np.zeros((3, num_portfolios))
+    weights_record = []
+    for i in range(num_portfolios):
+        weights = np.random.random(len(mean_returns))
+        weights /= np.sum(weights)
+        weights_record.append(weights)
+        portfolio_return, portfolio_std = portfolio_performance(
+            weights, mean_returns, cov_matrix)
+        results[0, i] = portfolio_return
+        results[1, i] = portfolio_std
+        results[2, i] = (portfolio_return - risk_free_rate) / portfolio_std
+    return results, weights_record
+
+
+results, weights_record = generate_efficient_frontier(
+    annualized_returns, cov_matrix, num_portfolios)
+
+max_sharpe_idx = np.argmax(results[2])
+max_sharpe_portfolio = {
+    "return": results[0, max_sharpe_idx],
+    "std": results[1, max_sharpe_idx],
+    "sharpe": results[2, max_sharpe_idx],
+    "weights": weights_record[max_sharpe_idx]
+}
+
+plt.figure(figsize=(10, 6))
+plt.scatter(results[1, :], results[0, :], c=results[2, :],
+            cmap='viridis', marker='o', s=10, alpha=0.3)
+plt.colorbar(label='Sharpe Ratio')
+plt.scatter(max_sharpe_portfolio["std"],
+            max_sharpe_portfolio["return"], color='r', s=50)
+plt.title('Efficient Frontier and Maximum Sharpe Ratio Portfolio (Monte Carlo)')
+plt.xlabel('Portfolio Volatility')
+plt.ylabel('Portfolio Return')
+plt.show()
+
+# Method 2: Scipy's Optimize Module
+
+
+def portfolio_variance(weights, mean_returns, cov_matrix):
+    return portfolio_performance(weights, mean_returns, cov_matrix)[1] ** 2
+
+
+def portfolio_negative_sharpe(weights, mean_returns, cov_matrix, risk_free_rate):
+    p_return, p_std = portfolio_performance(weights, mean_returns, cov_matrix)
+    return -(p_return - risk_free_rate) / p_std
+
+
+# Weights must sum to 1
+constraints = ({'type': 'eq', 'fun': lambda x: np.sum(x) - 1})
+bounds = tuple((0, 1)
+               for _ in range(len(annualized_returns)))  # Long only constraint
+
+# Minimize variance for a target return
+target_return = 0.15
+additional_constraint = ({'type': 'eq', 'fun': lambda x: np.sum(
+    annualized_returns * x) - target_return})
+optimized_variance = optimize.minimize(portfolio_variance, len(annualized_returns) * [1/len(annualized_returns)],
+                                       args=(annualized_returns, cov_matrix),
+                                       method='SLSQP', bounds=bounds, constraints=[constraints, additional_constraint])
+
+# Maximize Sharpe Ratio
+optimized_sharpe = optimize.minimize(portfolio_negative_sharpe, len(annualized_returns) * [1/len(annualized_returns)],
+                                     args=(annualized_returns,
+                                           cov_matrix, risk_free_rate),
+                                     method='SLSQP', bounds=bounds, constraints=[constraints])
+
+# Comparing Results
+print("\n--- Optimization Results Comparison ---")
+print("Monte Carlo Simulation:")
+print(f"  - Maximum Sharpe Ratio: {max_sharpe_portfolio['sharpe']:.4f}")
+print(f"  - Portfolio Return:     {max_sharpe_portfolio['return']:.4f}")
+print(f"  - Portfolio Volatility: {max_sharpe_portfolio['std']:.4f}")
+
+print("\nScipy's Optimize Module:")
+print(
+    f"  - Minimum Variance Portfolio Volatility (Target Return {target_return:.2f}): {np.sqrt(optimized_variance.fun):.4f}")
+print(f"  - Maximum Sharpe Ratio: {(-optimized_sharpe.fun):.4f}")
+
+
+
+
+'''
+Results:
+
+--- Optimization Results Comparison ---
+Monte Carlo Simulation:
+  - Maximum Sharpe Ratio: 1.8199
+  - Portfolio Return:     0.3134
+  - Portfolio Volatility: 0.1585
+
+Scipy's Optimize Module:
+  - Minimum Variance Portfolio Volatility (Target Return 0.15): 0.0855
+  - Maximum Sharpe Ratio: 3.9001
+
+
+
+For Monte Carlo Simulation, Sharpe Ratio indicates for every unit of volatility, the portfolio is expected to return 1.82 units of return. Good risk-adjusted ratio, but still more lower than the one from scipy's.
+Portfolio return indicates a high expected return for the portfolio based on the random simulations generated. This is a relatively high return, reflecting a more aggressive portfolio that aims for higher returns.
+The portfolio volatility of 15.85% represents the risk of the portfolio. A higher volatility indicates that the portfolio's returns are expected to fluctuate more, making it riskier. This volatility is relatively 
+high but still reflects a balanced approach in Monte Carlo simulations where the risk-return trade-off is considered. The Monte Carlo simulation explores a broad range of possible portfolio combinations. 
+The result shows an expected return of 31.34%, with a risk (volatility) of 15.85%. The Sharpe ratio of 1.82 suggests that the portfolio provides a good return relative to its risk.
+
+
+For Scipy's Optimize Module, the volatility of 8.55% for a target return of 15% indicates that the optimization focuses on finding the least risky portfolio for a specified return. 
+This portfolio carries significantly less risk than the one generated by the Monte Carlo simulation. The maximum Sharpe ratio of 3.9001 is significantly higher than the Monte Carlo simulation's Sharpe ratio of 1.8199. 
+This means the portfolio is expected to provide much higher returns for every unit of risk. A Sharpe ratio of 3.9 indicates a highly efficient portfolio in terms of risk-adjusted returns. Scipy's optimization 
+focuses on finding portfolios that meet specific goals. The maximum Sharpe ratio of 3.90 is an indication of a much more efficient portfolio compared to the Monte Carlo simulation, meaning it generates higher returns
+per unit of risk.
+
+
+Monte Carlo Simulation: 
+This method provides a portfolio with 31.34% return and 15.85% risk. 
+The Sharpe ratio of 1.82 is solid, suggesting a good risk-adjusted return, but there is still room for improvement.
+
+Scipy's Optimize: This method delivers a portfolio with 15% return and 8.55% risk, but the Sharpe ratio of 3.90 indicates a much more efficient portfolio in terms of risk-return trade-off. 
+It provides better returns per unit of risk than the Monte Carlo portfolio.
+
+
+'''
