@@ -18,38 +18,40 @@ rows = []
 for row in table.find_all('tr')[1:]:
     rows.append([td.text.strip() for td in row.find_all('td')])
 
+
+
+
 # Create a Pandas DataFrame from the extracted data
+
+
+
+# Check the exact column names in the DataFrame
 df = pd.DataFrame(rows, columns=header)
 
 
-
-tickers = df['Symbol'].tolist()
+print("Columns in DataFrame:", df.columns)  
+ 
+ticker_column_name = 'Ticker' if 'Ticker' in df.columns else 'Symbol'
+tickers = df[ticker_column_name].tolist()
 
 # Step 3: Downloading Historical Stock Data
-start_date = (datetime.date.today() - datetime.timedelta(days=5*365)).strftime('%Y-%m-%d')
+start_date = (datetime.date.today() -
+              datetime.timedelta(days=5*365)).strftime('%Y-%m-%d')
 end_date = (datetime.date.today()).strftime('%Y-%m-%d')
-
-
-for ticker in tickers:
-    try:
-        # Download stock data
-        data = yf.download(ticker, start= start_date, end= end_date)
-        if data.empty:
-            print(f"Failed to get data for {ticker}: No data found or ticker possibly delisted.")
-        else:
-            # Save to CSV
-            data.to_csv(f"{ticker}_data.csv")
-            print(f"Data for {ticker} downloaded successfully.")
-    except Exception as e:
-        print(f"Failed to get ticker '{ticker}' reason: {e}")
+# Download historical data for the tickers
+try:
+    data = yf.download(tickers, start=start_date, end=end_date)
+except Exception as e:
+    print(f"Error downloading data: {e}")
 # Select Adjusted Closing Prices
 adj_close = data['Adj Close']
 
- #Step 4: Data Cleaning and Preparation
+# Step 4: Data Cleaning and Preparation
 # Handling missing values by forward filling
-adj_close = adj_close.ffill()
-
-
+adj_close.ffill()
 
 # Calculate daily log returns
 daily_returns = adj_close.pct_change().dropna()
+
+
+print("Data downloaded successfully.")
