@@ -26,8 +26,8 @@ Technologies Used:
 
 
 Workflow:
-1. Data Collection and Preprocessing: Fetch historical stock prices for NASDAQ-100 stocks (2022-2023). Clean and preprocess data to calculate returns, risks, and other metrics.
-2. Data Analysis: Analyze trends in returns and risks. Define key constraints for the optimization problem.
+1. Data Acquisition and Preprocessing: A list of NASDAQ 100 components are scraped from Wikipedia and data was wrangled into a usable format. Afterwards, historical stock prices are downloaded using yfinance. 
+2. Explanatory Data Analysis: Analyze trends in returns and risks. Define key constraints for the optimization problem. Descriptive statistics are calculated. 
 3. Model Formulation: Define the mathematical model for portfolio optimization: Decision variables [Binary (stock selection), Continuous (stock weights)], objective function [maximize portfolio returns],
    constraints [budget, cardinality, diversification, risk control, and diminishing returns]
 5. Optimization with Gurobi: Implement the integer programming model using Gurobi. Solve for the optimal stock portfolio.
