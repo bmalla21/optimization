@@ -1,0 +1,82 @@
+import requests
+from bs4 import BeautifulSoup
+import pandas as pd
+import yfinance as yf
+import datetime
+
+# Step 2: Scraping Nasdaq 100 Components from Wikipedia
+url = 'https://en.wikipedia.org/wiki/Nasdaq-100'
+response = requests.get(url)
+soup = BeautifulSoup(response.content, 'html.parser')
+
+# Find the table containing Nasdaq 100 components
+table = soup.find('table', {'class': 'wikitable sortable'})
+
+# Extract table header and data rows
+header = [th.text.strip() for th in table.find_all('th')]
+rows = []
+for row in table.find_all('tr')[1:]:
+    rows.append([td.text.strip() for td in row.find_all('td')])
+
+
+
+
+# Create a Pandas DataFrame from the extracted data
+
+
+
+# Check the exact column names in the DataFrame
+df = pd.DataFrame(rows, columns=header)
+
+
+print("Columns in DataFrame:", df.columns)  
+ 
+ticker_column_name = 'Ticker' if 'Ticker' in df.columns else 'Symbol'
+tickers = df[ticker_column_name].tolist()
+
+# Step 3: Downloading Historical Stock Data
+start_date = (datetime.date.today() -
+              datetime.timedelta(days=5*365)).strftime('%Y-%m-%d')
+end_date = (datetime.date.today()).strftime('%Y-%m-%d')
+# Download historical data for the tickers
+try:
+    data = yf.download(tickers, start=start_date, end=end_date)
+except Exception as e:
+    print(f"Error downloading data: {e}")
+# Select Adjusted Closing Prices
+adj_close = data['Adj Close']
+
+# Step 4: Data Cleaning and Preparation
+# Handling missing values by forward filling
+adj_close.ffill()
+
+# Calculate daily log returns
+daily_returns = adj_close.pct_change().dropna()
+
+
+print("Data downloaded successfully.")
+
+
+import matplotlib.pyplot as plt
+import seaborn as sns
+
+# Step 1: Descriptive Statistics
+descriptive_stats = daily_returns.describe()
+print("Descriptive Statistics:\n", descriptive_stats)
+
+# Step 2: Correlation Matrix Visualization
+correlation_matrix = daily_returns.corr()
+plt.figure(figsize=(12, 8))
+sns.heatmap(correlation_matrix, annot=False, cmap='coolwarm')
+plt.title('Correlation Matrix of Nasdaq 100 Stock Returns')
+plt.show()
+
+# Step 3: Historical Price Trend Visualization
+plt.figure(figsize=(14, 8))
+for i in range(0, len(tickers), 10):  # Plot every 10th stock
+    plt.plot(adj_close[tickers[i]], label=tickers[i])
+plt.title('Historical Adjusted Closing Prices of Selected Nasdaq 100 Stocks')
+plt.xlabel('Date')
+plt.ylabel('Adjusted Closing Price')
+plt.legend(loc='upper left', fontsize='small', ncol=5)
+plt.show()
